@@ -1,0 +1,65 @@
+📄 Báo cáo kỹ thuật: IoT Status Dashboard (ReactJS + MQTT.js)
+✅ Mục tiêu
+Xây dựng một dashboard thời gian thực hiển thị:
+
+Nhiệt độ 🌡️
+
+Độ ẩm 💧
+
+Trạng thái chuyển động 🔔
+Thông tin này được nhận qua giao thức MQTT từ một thiết bị IoT (ESP8266).
+
+🧱 Stack sử dụng
+ReactJS (với useState + useEffect)
+
+MQTT.js (mqtt npm package)
+
+TailwindCSS cho UI
+
+MQTT broker hỗ trợ WebSocket (ví dụ: Mosquitto mở port 9001)
+
+📦 Cách hoạt động
+App kết nối tới ws://192.168.1.100:9001 thông qua WebSocket.
+
+Subscribe 3 topic:
+
+iot/temperature → giá trị nhiệt độ (chuỗi, ví dụ "29.5")
+
+iot/humidity → giá trị độ ẩm (chuỗi, ví dụ "63.1")
+
+iot/motion → "1" nếu có chuyển động, "0" nếu không
+
+Khi dữ liệu đến, giá trị UI sẽ được cập nhật ngay.
+
+⚙️ Yêu cầu MQTT Broker
+Địa chỉ nội bộ hiện tại: 192.168.1.100
+
+Cổng WebSocket: 9001
+👉 Có thể cấu hình lại trong dòng sau:
+
+js
+Copy
+Edit
+const client = mqtt.connect("ws://192.168.1.100:9001");
+📁 Cấu trúc giao diện
+3 thẻ card hiển thị trạng thái:
+
+Nhiệt độ (màu đỏ)
+
+Độ ẩm (màu xanh dương)
+
+Phát hiện chuyển động (xanh lá nếu có, xám nếu không)
+
+Một dòng trạng thái kết nối MQTT: 🟢 hoặc 🔴
+
+📋 Cần chú ý
+Phải cài mqtt:
+
+bash
+Copy
+Edit
+npm install mqtt
+Nếu chạy trong mạng nội bộ, hãy đảm bảo broker và thiết bị đều cùng một lớp mạng (ví dụ: 192.168.1.xxx).
+
+Nếu sau này cần chuyển thành cloud (public broker hoặc Mosquitto online), chỉ cần sửa lại dòng kết nối MQTT.
+
