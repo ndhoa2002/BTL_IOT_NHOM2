@@ -1,0 +1,515 @@
+ ================================================================================
+                    LUỒNG CHẠY CHI TIẾT DỰ ÁN IOT SMART HOME
+================================================================================
+
+📋 TỔNG QUAN DỰ ÁN:
+Dự án IoT Smart Home là một hệ thống giám sát và điều khiển thông minh bao gồm:
+- Thiết bị Arduino ESP8266 với cảm biến DHT11, PIR motion sensor
+- Backend Node.js với MQTT broker, WebSocket, REST API
+- Frontend React với dashboard real-time
+- Database MySQL để lưu trữ dữ liệu
+
+🔄 LUỒNG CHẠY TỔNG THỂ:
+
+1. KHỞI TẠO HỆ THỐNG
+   ├── Arduino ESP8266 khởi động
+   ├── Backend Node.js server khởi động
+   ├── MQTT broker (Mosquitto) chạy
+   ├── Database MySQL kết nối
+   └── Frontend React app load
+
+2. KẾT NỐI MẠNG
+   ├── Arduino kết nối WiFi
+   ├── Arduino kết nối MQTT broker
+   ├── Backend kết nối MQTT broker
+   └── Frontend kết nối WebSocket
+
+3. LUỒNG DỮ LIỆU SENSOR
+   ├── Arduino đọc cảm biến mỗi 3 giây
+   ├── Gửi dữ liệu qua MQTT topics
+   ├── Backend nhận và xử lý dữ liệu
+   ├── Lưu vào database
+   └── Broadcast qua WebSocket đến Frontend
+
+4. LUỒNG ĐIỀU KHIỂN
+   ├── User click button trên Frontend
+   ├── Gửi lệnh qua WebSocket
+   ├── Backend xử lý và gửi qua MQTT
+   ├── Arduino nhận và thực thi
+   └── Phản hồi trạng thái về Frontend
+
+================================================================================
+                    CHI TIẾT TỪNG THÀNH PHẦN
+================================================================================
+
+🔧 1. ARDUINO ESP8266 (Thiết bị IoT)
+
+HARDWARE:
+- ESP8266 WiFi module
+- DHT11 sensor (nhiệt độ, độ ẩm)
+- PIR motion sensor (phát hiện chuyển động)
+- LED indicator
+- Relay module (điều khiển đèn)
+
+CHỨC NĂNG:
+a) Kết nối mạng:
+   - Kết nối WiFi với SSID "405 wifi"
+   - Kết nối MQTT broker tại IP 192.168.1.5:1883
+   - Client ID: "esp8266_client"
+
+b) Đọc cảm biến (mỗi 3 giây):
+   - DHT11: đọc nhiệt độ và độ ẩm
+   - PIR: đọc trạng thái chuyển động
+   - LED indicator: hiển thị trạng thái motion
+
+c) Gửi dữ liệu MQTT:
+   - Topic "iot/temperature": giá trị nhiệt độ
+   - Topic "iot/humidity": giá trị độ ẩm  
+   - Topic "iot/motion": trạng thái motion (0/1)
+
+d) Nhận lệnh điều khiển:
+   - Subscribe topic "iot/light"
+   - Nhận lệnh 1: bật đèn
+   - Nhận lệnh 0: tắt đèn
+
+LUỒNG CHẠY ARDUINO:
+1. setup():
+   - Khởi tạo Serial (115200 baud)
+   - Cấu hình GPIO pins
+   - Khởi tạo DHT sensor
+   - Kết nối WiFi
+   - Kết nối MQTT broker
+   - Subscribe topic "iot/light"
+
+2. loop():
+   - Kiểm tra kết nối MQTT
+   - Đọc PIR sensor và gửi qua MQTT
+   - Mỗi 3 giây: đọc DHT và gửi qua MQTT
+   - Xử lý callback MQTT messages
+   - Delay 100ms
+
+================================================================================
+
+🖥️ 2. BACKEND NODE.JS SERVER
+
+CẤU TRÚC THƯ MỤC:
+- server.js: Entry point
+- config/database.js: Kết nối MySQL
+- services/mqttService.js: Xử lý MQTT
+- services/webSocketService.js: Xử lý WebSocket
+- routes/auth.js: API xác thực
+- routes/sensors.js: API sensor data
+- middleware/auth.js: JWT authentication
+
+CHỨC NĂNG CHÍNH:
+
+a) MQTT Service (mqttService.js):
+   - Kết nối MQTT broker
+   - Subscribe topics: iot/temperature, iot/humidity, iot/motion
+   - Nhận dữ liệu từ Arduino
+   - Lưu vào database theo user_id
+   - Broadcast qua WebSocket
+   - Cache dữ liệu để tối ưu performance
+
+b) WebSocket Service (webSocketService.js):
+   - Xác thực JWT token
+   - Quản lý kết nối clients
+   - Nhận lệnh điều khiển từ Frontend
+   - Gửi dữ liệu real-time đến Frontend
+   - Broadcast sensor data
+
+c) Authentication (auth.js):
+   - Register user mới
+   - Login với username/email
+   - JWT token generation
+   - Password hashing với bcrypt
+
+d) Sensor API (sensors.js):
+   - GET /latest: Lấy dữ liệu mới nhất
+   - GET /history: Lấy lịch sử dữ liệu
+   - POST /control-light: Điều khiển đèn
+   - GET /stats: Thống kê dữ liệu
+
+LUỒNG CHẠY BACKEND:
+1. Khởi động server:
+   - Load environment variables
+   - Kết nối database MySQL
+   - Khởi tạo MQTT service
+   - Khởi tạo WebSocket service
+   - Start HTTP server
+
+2. Xử lý MQTT messages:
+   - Nhận dữ liệu từ Arduino
+   - Validate và parse dữ liệu
+   - Lưu vào database theo user_id
+   - Broadcast qua WebSocket
+
+3. Xử lý WebSocket:
+   - Authenticate connection
+   - Handle light control commands
+   - Send real-time data
+   - Manage client connections
+
+================================================================================
+
+🌐 3. FRONTEND REACT APP
+
+CẤU TRÚC:
+- src/App.js: Main component
+- src/components/Dashboard.js: Dashboard chính
+- src/components/Login.js: Form đăng nhập
+- src/components/Register.js: Form đăng ký
+
+CHỨC NĂNG CHÍNH:
+
+a) Authentication:
+   - Login/Register forms
+   - JWT token storage (localStorage)
+   - Protected routes
+   - Auto logout khi token hết hạn
+
+b) Dashboard Real-time:
+   - Hiển thị nhiệt độ, độ ẩm real-time
+   - Hiển thị trạng thái motion detection
+   - Điều khiển đèn bật/tắt
+   - Hiển thị thời gian và lịch trình tự động
+   - Alert system với âm thanh
+
+c) WebSocket Connection:
+   - Kết nối WebSocket với JWT token
+   - Nhận dữ liệu real-time
+   - Gửi lệnh điều khiển
+   - Handle connection status
+
+d) Alert System:
+   - Cảnh báo nhiệt độ cao/thấp
+   - Cảnh báo độ ẩm cao/thấp
+   - Cảnh báo motion ban đêm
+   - Âm thanh cảnh báo
+   - Google Sheets logging
+
+e) Auto Control:
+   - Tự động bật đèn lúc 7:00 GMT+7
+   - Tự động tắt đèn lúc 23:00 GMT+7
+   - Chế độ ban đêm (22:00-06:00)
+
+LUỒNG CHẠY FRONTEND:
+1. Khởi động app:
+   - Check authentication token
+   - Redirect to Login nếu chưa auth
+   - Load Dashboard nếu đã auth
+
+2. Dashboard initialization:
+   - Kết nối WebSocket
+   - Request latest data
+   - Setup real-time updates
+   - Initialize alert system
+
+3. Real-time updates:
+   - Nhận sensor data qua WebSocket
+   - Update UI components
+   - Trigger alerts nếu cần
+   - Log to Google Sheets
+
+4. User interactions:
+   - Click button điều khiển đèn
+   - Send command qua WebSocket
+   - Update UI immediately
+   - Show confirmation
+
+================================================================================
+
+🗄️ 4. DATABASE MYSQL
+
+CẤU TRÚC BẢNG:
+
+a) users:
+   - id (PRIMARY KEY)
+   - username (UNIQUE)
+   - password (HASHED)
+   - email (UNIQUE)
+   - phone
+   - created_at, updated_at
+
+b) dhtsensor:
+   - id (PRIMARY KEY)
+   - user_id (FOREIGN KEY)
+   - humidity (DECIMAL)
+   - temperature (DECIMAL)
+   - time (TIMESTAMP)
+
+c) motionsensor:
+   - id (PRIMARY KEY)
+   - user_id (FOREIGN KEY)
+   - motion (TINYINT 0/1)
+   - time (TIMESTAMP)
+
+d) action:
+   - id (PRIMARY KEY)
+   - user_id (FOREIGN KEY)
+   - status (TINYINT 0/1)
+   - time (TIMESTAMP)
+
+INDEXES:
+- idx_dhtsensor_user_time
+- idx_motionsensor_user_time  
+- idx_action_user_time
+
+LUỒNG LƯU TRỮ:
+1. DHT Data:
+   - Cache temperature và humidity
+   - Lưu cùng lúc khi có đủ 2 giá trị
+   - Mỗi user có cache riêng
+
+2. Motion Data:
+   - Chỉ lưu khi motion = 1
+   - Debounce 2 giây giữa các lần lưu
+   - Track thời gian motion cuối
+
+3. Action Data:
+   - Lưu mỗi lần user điều khiển đèn
+   - Status 0: tắt, 1: bật
+
+================================================================================
+
+🔗 5. LUỒNG DỮ LIỆU CHI TIẾT
+
+A) LUỒNG SENSOR DATA:
+Arduino → MQTT → Backend → Database + WebSocket → Frontend
+
+1. Arduino đọc sensor (3 giây/lần):
+   ```
+   DHT11 → temperature, humidity
+   PIR → motion (0/1)
+   ```
+
+2. Gửi qua MQTT:
+   ```
+   iot/temperature: "30.80"
+   iot/humidity: "75.00"  
+   iot/motion: "1"
+   ```
+
+3. Backend nhận và xử lý:
+   ```
+   MQTT Service → Parse data → Validate → Cache → Save DB → Broadcast WS
+   ```
+
+4. Frontend nhận và hiển thị:
+   ```
+   WebSocket → Update state → Re-render UI → Check alerts
+   ```
+
+B) LUỒNG ĐIỀU KHIỂN:
+Frontend → WebSocket → Backend → MQTT → Arduino
+
+1. User click button:
+   ```
+   Frontend → toggleLight() → WebSocket.send()
+   ```
+
+2. Backend xử lý:
+   ```
+   WebSocket → handleLightControl() → MQTT.publish()
+   ```
+
+3. Arduino nhận và thực thi:
+   ```
+   MQTT callback → digitalWrite(LIGHT, HIGH/LOW)
+   ```
+
+C) LUỒNG ALERT:
+Sensor Data → Alert Check → Notification → Google Sheets
+
+1. Monitor sensor values:
+   ```
+   Temperature > 35°C → Danger alert
+   Temperature > 30°C → Warning alert
+   Humidity > 80% → Warning alert
+   Motion at night → Danger alert
+   ```
+
+2. Alert processing:
+   ```
+   Check debounce → Create alert → Play sound → Send to Google Sheets
+   ```
+
+================================================================================
+
+⚙️ 6. CÁC TÍNH NĂNG ĐẶC BIỆT
+
+A) REAL-TIME DASHBOARD:
+- WebSocket connection cho real-time updates
+- Auto-reconnect khi mất kết nối
+- Immediate UI updates
+- Connection status indicator
+
+B) ALERT SYSTEM:
+- Multi-level alerts (info, warning, danger)
+- Sound notifications
+- Debouncing để tránh spam
+- Google Sheets logging
+- Night mode detection
+
+C) AUTO CONTROL:
+- Schedule-based light control
+- Timezone handling (GMT+7)
+- Night mode (22:00-06:00)
+- Automatic light on/off
+
+D) SECURITY:
+- JWT authentication
+- Password hashing (bcrypt)
+- Protected API routes
+- WebSocket authentication
+- User-specific data isolation
+
+E) PERFORMANCE OPTIMIZATION:
+- Database connection pooling
+- MQTT message caching
+- Debounced motion detection
+- Efficient WebSocket broadcasting
+- Indexed database queries
+
+================================================================================
+
+🚀 7. DEPLOYMENT & CONFIGURATION
+
+A) HARDWARE SETUP:
+1. Arduino ESP8266:
+   - Upload code arduino_code_fixed.ino
+   - Cấu hình WiFi credentials
+   - Cấu hình MQTT broker IP
+   - Kết nối sensors và relay
+
+2. MQTT Broker (Mosquitto):
+   - Install Mosquitto
+   - Cấu hình mosquitto.conf
+   - Start service
+
+B) SOFTWARE SETUP:
+1. Backend:
+   ```
+   npm install
+   cấu hình config.env
+   npm start
+   ```
+
+2. Database:
+   ```
+   Import database.sql
+   Cấu hình connection trong config/database.js
+   ```
+
+3. Frontend:
+   ```
+   npm install
+   npm start
+   ```
+
+C) ENVIRONMENT VARIABLES:
+```
+PORT=5000
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=password
+DB_NAME=iot_pj
+JWT_SECRET=your_secret_key
+MQTT_BROKER_URL=mqtt://192.168.1.5:1883
+MQTT_CLIENT_ID=backend_client
+```
+
+================================================================================
+
+📊 8. MONITORING & DEBUGGING
+
+A) LOGGING:
+- Console logs cho tất cả operations
+- Error handling và reporting
+- WebSocket connection status
+- MQTT connection status
+- Database connection status
+
+B) DEBUG ENDPOINTS:
+- /api/health: Server status
+- /api/ws-status: WebSocket status
+- /api/debug/mqtt-cache: MQTT cache info
+- /api/debug/database: Database status
+
+C) PERFORMANCE METRICS:
+- WebSocket clients count
+- MQTT message rate
+- Database query performance
+- Memory usage
+- CPU usage
+
+================================================================================
+
+🔧 9. TROUBLESHOOTING
+
+A) COMMON ISSUES:
+1. Arduino không kết nối WiFi:
+   - Kiểm tra SSID/password
+   - Kiểm tra signal strength
+
+2. MQTT connection failed:
+   - Kiểm tra broker IP/port
+   - Kiểm tra network connectivity
+
+3. WebSocket connection failed:
+   - Kiểm tra JWT token
+   - Kiểm tra server status
+
+4. Database connection failed:
+   - Kiểm tra MySQL service
+   - Kiểm tra credentials
+
+B) DEBUGGING STEPS:
+1. Check Arduino Serial Monitor
+2. Check Backend console logs
+3. Check Frontend browser console
+4. Check MQTT broker logs
+5. Check database logs
+
+================================================================================
+
+📈 10. SCALABILITY & FUTURE ENHANCEMENTS
+
+A) SCALABILITY:
+- Multiple Arduino devices
+- Load balancing
+- Database clustering
+- Redis caching
+- Microservices architecture
+
+B) NEW FEATURES:
+- Mobile app
+- Voice control
+- AI-powered automation
+- Energy monitoring
+- Security cameras
+- Smart plugs
+- Temperature scheduling
+
+C) INTEGRATIONS:
+- Google Home
+- Amazon Alexa
+- IFTTT
+- Home Assistant
+- SmartThings
+
+================================================================================
+
+🎯 KẾT LUẬN
+
+Dự án IoT Smart Home là một hệ thống hoàn chỉnh với:
+- Real-time monitoring và control
+- Secure authentication
+- Scalable architecture
+- Comprehensive alert system
+- User-friendly interface
+- Robust error handling
+
+Hệ thống có thể mở rộng và tích hợp thêm nhiều tính năng thông minh khác trong tương lai.
+
+================================================================================

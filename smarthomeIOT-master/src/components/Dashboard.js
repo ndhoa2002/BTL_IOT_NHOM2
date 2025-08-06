@@ -8,6 +8,8 @@ const Dashboard = ({ user, onLogout }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [wsClient, setWsClient] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isManualMode, setIsManualMode] = useState(false); // Track if user manually toggled
   
   // Navigation state
   // const [currentPage, setCurrentPage] = useState('dashboard'); // 'dashboard', 'temperature', 'motion', 'light'
@@ -30,14 +32,21 @@ const Dashboard = ({ user, onLogout }) => {
   const GOOGLE_APPS_SCRIPT_URL =
     "https://script.google.com/macros/s/AKfycbyK3BqnygL1FeEWsoIFiHdzrrshkQZ9s7CaQhyWhoWpSKJ4DijGmJ1wZmLc1wbb31A0yg/exec"; // Replace with your script URL
 
-  // Update current time every second
+  // Update current time every second and check dark mode
   useEffect(() => {
     const timeInterval = setInterval(() => {
-      setCurrentTime(new Date());
+      const newTime = new Date();
+      setCurrentTime(newTime);
+      
+      // Only auto-update dark mode if not in manual mode
+      if (!isManualMode) {
+        const isNight = isNightTime();
+        setIsDarkMode(isNight);
+      }
     }, 1000);
 
     return () => clearInterval(timeInterval);
-  }, []);
+  }, [isManualMode]);
 
   // Function to send log to Google Sheets
   const sendLogToGoogleSheets = async (logData) => {
@@ -220,6 +229,36 @@ const Dashboard = ({ user, onLogout }) => {
   // Function to clear all alerts
   const clearAllAlerts = () => {
     setAlerts([]);
+  };
+
+  // Function to toggle dark mode manually
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode);
+    setIsManualMode(true);
+    
+    // Add alert to notify user
+    addAlert(
+      "theme",
+      isDarkMode ? "☀️ Chuyển sang Light Mode" : "🌙 Chuyển sang Dark Mode",
+      isDarkMode 
+        ? "Đã chuyển sang chế độ sáng thủ công" 
+        : "Đã chuyển sang chế độ tối thủ công",
+      "info"
+    );
+  };
+
+  // Function to reset to auto mode
+  const resetToAutoMode = () => {
+    setIsManualMode(false);
+    const isNight = isNightTime();
+    setIsDarkMode(isNight);
+    
+    addAlert(
+      "theme",
+      "🔄 Chuyển về chế độ tự động",
+      "Đã chuyển về chế độ tự động theo thời gian",
+      "info"
+    );
   };
 
   // Check for night time (22:00 - 06:00 GMT+7)
@@ -437,7 +476,7 @@ const Dashboard = ({ user, onLogout }) => {
       const currentSecond = vietnamTime.getUTCSeconds();
 
       // Check if it's exactly 7:00:00 AM GMT+7 - Auto turn ON
-      if (currentHour === 21 && currentMinute === 4 && currentSecond === 20) {
+      if (currentHour === 7 && currentMinute === 0 && currentSecond === 0) {
         console.log("🌅 7 AM GMT+7 - Auto turning on light");
 
         // Auto turn on light if connected and light is off
@@ -452,7 +491,7 @@ const Dashboard = ({ user, onLogout }) => {
       }
 
       // Check if it's exactly 23:00:00 (11 PM) GMT+7 - Auto turn OFF
-      if (currentHour === 21 && currentMinute === 4 && currentSecond === 40) {
+      if (currentHour === 23 && currentMinute === 0 && currentSecond === 0) {
         console.log("🌙 11 PM GMT+7 - Auto turning off light");
 
         // Auto turn off light if connected and light is on
@@ -568,10 +607,14 @@ const Dashboard = ({ user, onLogout }) => {
     const recentAlerts = alerts.slice(0, 5);
 
     return (
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className={`rounded-lg shadow-lg p-6 transition-colors duration-500 ${
+        isDarkMode ? 'bg-gray-800' : 'bg-white'
+      }`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
-            <h3 className="text-lg font-semibold text-gray-700">
+            <h3 className={`text-lg font-semibold ${
+              isDarkMode ? 'text-gray-200' : 'text-gray-700'
+            }`}>
               Cảnh báo hệ thống
             </h3>
             <div className="flex items-center space-x-2">
@@ -730,7 +773,9 @@ const Dashboard = ({ user, onLogout }) => {
     onClick,
   }) => (
     <div
-      className={`bg-white rounded-lg shadow-lg p-6 border-l-4 ${color} relative cursor-pointer hover:shadow-xl transition-all duration-200 ${onClick ? 'hover:scale-105' : ''}`}
+      className={`rounded-lg shadow-lg p-6 border-l-4 ${color} relative cursor-pointer hover:shadow-xl transition-all duration-200 ${onClick ? 'hover:scale-105' : ''} ${
+        isDarkMode ? 'bg-gray-800' : 'bg-white'
+      }`}
       onClick={onClick}
     >
       {hasAlert && (
@@ -745,14 +790,17 @@ const Dashboard = ({ user, onLogout }) => {
       )}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">{title}</h3>
+          <h3 className={`text-lg font-semibold mb-2 ${
+            isDarkMode ? 'text-white' : 'text-gray-700'
+          }`}>{title}</h3>
           <div className="flex items-baseline">
-            <span className="text-3xl font-bold text-gray-900">{value}</span>
-            <span className="text-lg text-gray-500 ml-2">{unit}</span>
+            <span className={`text-3xl font-bold ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>{value}</span>
+            <span className={`text-lg ml-2 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-500'
+            }`}>{unit}</span>
           </div>
-          {onClick && (
-            <p className="text-xs text-blue-600 mt-2">Click để xem chi tiết →</p>
-          )}
         </div>
         <div className="text-4xl">{icon}</div>
       </div>
@@ -760,13 +808,21 @@ const Dashboard = ({ user, onLogout }) => {
   );
 
   const StatusCard = ({ title, value, unit, color, icon }) => (
-    <div className={`bg-white rounded-lg shadow-lg p-6 border-l-4 ${color}`}>
+    <div className={`rounded-lg shadow-lg p-6 border-l-4 ${color} ${
+      isDarkMode ? 'bg-gray-800' : 'bg-white'
+    }`}>
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">{title}</h3>
+          <h3 className={`text-lg font-semibold mb-2 ${
+            isDarkMode ? 'text-white' : 'text-gray-700'
+          }`}>{title}</h3>
           <div className="flex items-baseline">
-            <span className="text-3xl font-bold text-gray-900">{value}</span>
-            <span className="text-lg text-gray-500 ml-2">{unit}</span>
+            <span className={`text-3xl font-bold ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>{value}</span>
+            <span className={`text-lg ml-2 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-500'
+            }`}>{unit}</span>
           </div>
         </div>
         <div className="text-4xl">{icon}</div>
@@ -776,28 +832,31 @@ const Dashboard = ({ user, onLogout }) => {
 
   const MotionCard = ({ title, isActive, icon, onClick }) => (
     <div
-      className={`bg-white rounded-lg shadow-lg p-6 border-l-4 ${
+      className={`rounded-lg shadow-lg p-6 border-l-4 ${
         isActive ? "border-green-500" : "border-gray-400"
-      } cursor-pointer hover:shadow-xl transition-all duration-200 ${onClick ? 'hover:scale-105' : ''}`}
+      } cursor-pointer hover:shadow-xl transition-all duration-200 ${onClick ? 'hover:scale-105' : ''} ${
+        isDarkMode ? 'bg-gray-800' : 'bg-white'
+      }`}
       onClick={onClick}
     >
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">{title}</h3>
+          <h3 className={`text-lg font-semibold mb-2 ${
+            isDarkMode ? 'text-white' : 'text-gray-700'
+          }`}>{title}</h3>
           <div className="flex items-center">
             <span
               className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                 isActive
                   ? "bg-green-100 text-green-800"
-                  : "bg-gray-100 text-gray-800"
+                  : isDarkMode 
+                    ? "bg-gray-700 text-gray-300"
+                    : "bg-gray-100 text-gray-800"
               }`}
             >
               {isActive ? "Phát hiện" : "Không có"}
             </span>
           </div>
-          {onClick && (
-            <p className="text-xs text-blue-600 mt-2">Click để xem chi tiết →</p>
-          )}
         </div>
         <div className="text-4xl">{icon}</div>
       </div>
@@ -807,20 +866,26 @@ const Dashboard = ({ user, onLogout }) => {
   // Light Control Card Component
   const LightControlCard = ({ title, isOn, onToggle, icon, onClick }) => (
     <div
-      className={`bg-white rounded-lg shadow-lg p-6 border-l-4 ${
+      className={`rounded-lg shadow-lg p-6 border-l-4 ${
         isOn ? "border-yellow-500" : "border-gray-400"
-      } cursor-pointer hover:shadow-xl transition-all duration-200 ${onClick ? 'hover:scale-105' : ''}`}
+      } cursor-pointer hover:shadow-xl transition-all duration-200 ${onClick ? 'hover:scale-105' : ''} ${
+        isDarkMode ? 'bg-gray-800' : 'bg-white'
+      }`}
       onClick={onClick}
     >
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">{title}</h3>
+          <h3 className={`text-lg font-semibold mb-2 ${
+            isDarkMode ? 'text-white' : 'text-gray-700'
+          }`}>{title}</h3>
           <div className="flex items-center space-x-3">
             <span
               className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                 isOn
                   ? "bg-yellow-100 text-yellow-800"
-                  : "bg-gray-100 text-gray-800"
+                  : isDarkMode 
+                    ? "bg-gray-700 text-gray-300"
+                    : "bg-gray-100 text-gray-800"
               }`}
             >
               {isOn ? "Đang bật" : "Đã tắt"}
@@ -842,9 +907,6 @@ const Dashboard = ({ user, onLogout }) => {
               {isOn ? "Tắt đèn" : "Bật đèn"}
             </button>
           </div>
-          {onClick && (
-            <p className="text-xs text-blue-600 mt-2">Click để xem chi tiết →</p>
-          )}
         </div>
         <div className="text-4xl">{icon}</div>
       </div>
@@ -859,15 +921,21 @@ const Dashboard = ({ user, onLogout }) => {
     const dateString = vietnamTime.toISOString().substr(0, 10); // YYYY-MM-DD format
 
     return (
-      <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-purple-500">
+      <div className={`rounded-lg shadow-lg p-6 border-l-4 border-purple-500 ${
+        isDarkMode ? 'bg-gray-800' : 'bg-white'
+      }`}>
         <div className="flex items-center justify-between">
           <div className="w-full">
-            <h3 className="text-lg font-semibold text-gray-700 mb-3">
+            <h3 className={`text-lg font-semibold mb-3 ${
+              isDarkMode ? 'text-white' : 'text-gray-700'
+            }`}>
               Thời gian & Lịch trình
             </h3>
             <div className="space-y-3">
               <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">
+                <span className={`text-sm ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                }`}>
                   Thời gian hiện tại (GMT+7):
                 </span>
                 <span className="text-xl font-bold text-blue-600">
@@ -875,15 +943,21 @@ const Dashboard = ({ user, onLogout }) => {
                 </span>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Ngày:</span>
-                <span className="text-sm font-medium text-gray-800">
+                <span className={`text-sm ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                }`}>Ngày:</span>
+                <span className={`text-sm font-medium ${
+                  isDarkMode ? 'text-gray-200' : 'text-gray-800'
+                }`}>
                   {dateString}
                 </span>
               </div>
 
               {/* Auto Schedule Info */}
               <div className="mt-4 space-y-2">
-                <h4 className="text-sm font-semibold text-gray-700">
+                <h4 className={`text-sm font-semibold ${
+                  isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                }`}>
                   Lịch trình tự động:
                 </h4>
 
@@ -942,16 +1016,24 @@ const Dashboard = ({ user, onLogout }) => {
 
   // Main Dashboard
   return (
-    <div className="min-h-screen bg-gray-100 py-8">
+    <div className={`min-h-screen py-8 transition-colors duration-500 ${
+      isDarkMode 
+        ? 'bg-gray-900 text-white' 
+        : 'bg-gray-100 text-gray-900'
+    }`}>
       <div className="max-w-6xl mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="mb-4">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            <h1 className={`text-4xl font-bold mb-4 ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>
               IoT Status Dashboard
             </h1>
             <div className="flex items-center justify-center space-x-2">
-              <span className="text-lg text-gray-600">
+              <span className={`text-lg ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}>
                 Trạng thái kết nối WebSocket:
               </span>
               <span className="text-2xl">{isConnected ? "🟢" : "🔴"}</span>
@@ -968,10 +1050,40 @@ const Dashboard = ({ user, onLogout }) => {
             <div className="flex items-center space-x-4">
               {user && (
                 <div className="text-right">
-                  <p className="text-sm text-gray-600">Xin chào, {user.username}</p>
-                  <p className="text-xs text-gray-500">{user.email}</p>
+                  <p className={`text-sm ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                  }`}>Xin chào, {user.username}</p>
+                  <p className={`text-xs ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>{user.email}</p>
                 </div>
               )}
+              
+              {/* Dark Mode Toggle Button */}
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={toggleDarkMode}
+                  className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
+                    isDarkMode 
+                      ? 'bg-yellow-500 hover:bg-yellow-600 text-white' 
+                      : 'bg-gray-700 hover:bg-gray-800 text-white'
+                  }`}
+                  title={isDarkMode ? 'Chuyển sang Light Mode' : 'Chuyển sang Dark Mode'}
+                >
+                  {isDarkMode ? '☀️' : '🌙'}
+                </button>
+                
+                {isManualMode && (
+                  <button
+                    onClick={resetToAutoMode}
+                    className="px-2 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-xs transition-colors"
+                    title="Chuyển về chế độ tự động"
+                  >
+                    🔄
+                  </button>
+                )}
+              </div>
+              
               <button
                 onClick={onLogout}
                 className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm"
@@ -1037,11 +1149,17 @@ const Dashboard = ({ user, onLogout }) => {
         </div>
 
         {/* Connection Info */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-700 mb-4">
+        <div className={`rounded-lg shadow-lg p-6 ${
+          isDarkMode ? 'bg-gray-800' : 'bg-white'
+        }`}>
+          <h3 className={`text-lg font-semibold mb-4 ${
+            isDarkMode ? 'text-gray-200' : 'text-gray-700'
+          }`}>
             Thông tin kết nối
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
+          <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 text-sm ${
+            isDarkMode ? 'text-gray-300' : 'text-gray-600'
+          }`}>
             <div>Connected to MQTT broker: {isConnected ? "🟢" : "🔴"}</div>
             <div>
               <strong>Topics đăng ký:</strong>
@@ -1054,9 +1172,13 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
 
           {/* Night Mode Indicator */}
-          <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+          <div className={`mt-4 p-3 rounded-lg ${
+            isDarkMode ? 'bg-gray-700' : 'bg-gray-50'
+          }`}>
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">
+              <span className={`text-sm font-medium ${
+                isDarkMode ? 'text-gray-200' : 'text-gray-700'
+              }`}>
                 Chế độ ban đêm:
               </span>
               <div className="flex items-center space-x-2">
@@ -1076,13 +1198,34 @@ const Dashboard = ({ user, onLogout }) => {
                     ? "ĐANG BẬT (22:00-06:00)"
                     : "ĐANG TẮT (06:00-22:00)"}
                 </span>
+                <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
+                  isDarkMode 
+                    ? 'bg-blue-100 text-blue-800' 
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {isDarkMode ? '🌙 Dark' : '☀️ Light'}
+                  {isManualMode && ' (Manual)'}
+                </span>
               </div>
+            </div>
+            
+            {/* Mode Status Info */}
+            <div className={`mt-2 text-xs ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-600'
+            }`}>
+              {isManualMode ? (
+                <span>🎛️ Chế độ thủ công - Bạn có thể chuyển đổi tự do</span>
+              ) : (
+                <span>🤖 Chế độ tự động - Thay đổi theo thời gian (22:00-06:00)</span>
+              )}
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-8 text-gray-500">
+        <div className={`text-center mt-8 ${
+          isDarkMode ? 'text-gray-400' : 'text-gray-500'
+        }`}>
           <p>Dashboard cập nhật thời gian thực từ thiết bị IoT ESP8266</p>
         </div>
       </div>
